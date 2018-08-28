@@ -1,0 +1,45 @@
+DISCOUNT_PERCENT=30
+CART_DISCOUNT_MESSAGE="Buy 2 or more items and get 30% off the least expensive item"
+
+
+eligible_items = Input.cart.line_items.select do |line_item|
+  product = line_item.variant.product
+  !product.gift_card?
+end
+
+# Sort eligible items by price, least exensive first
+eligible_items = eligible_items.sort_by{|line_item| line_item.variant.price}
+
+total_items = 0
+eligible_items.each do |line_item|
+  total_items += line_item.quantity
+end
+
+if(total_items >= 2)
+  # pull the least exensive item
+  line_item = eligible_items.first
+  # calculate the discount to be applied
+  percent = Decimal.new(DISCOUNT_PERCENT) / 100.0
+  
+  
+  # make sure we don't discount multiple items hiding in a single line item
+  if line_item.quantity == 1
+    line_discount = line_item.line_price * percent
+    puts "line_discount = #{line_discount}"
+    # Just discount the item directly
+    line_item.change_line_price(line_item.line_price - line_discount, message: CART_DISCOUNT_MESSAGE)
+  else
+    # If only part of the item must be discounted, split the item
+    discounted_item = line_item.split(take: 1)
+    # Insert the newly-created item in the cart, right after the original item
+    position = Input.cart.line_items.find_index(line_item)
+    line_discount = discounted_item.line_price * percent
+    puts "line_discount = #{line_discount}"
+    Input.cart.line_items.insert(position + 1, discounted_item)
+    # Discount the new item
+    discounted_item.change_line_price(discounted_item.line_price - line_discount, message: CART_DISCOUNT_MESSAGE)
+  end
+end
+
+
+Output.cart = Input.cart
